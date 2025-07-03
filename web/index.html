@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>h4ck3r.sh — root@darknet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:      #020c02;
+    --bg2:     #030f03;
+    --green:   #00ff41;
+    --green2:  #00cc33;
+    --green3:  #008f1f;
+    --dim:     #004d14;
+    --amber:   #ffb700;
+    --red:     #ff3c3c;
+    --cyan:    #00ffe5;
+    --muted:   #0a2e0a;
+    --text:    #b8ffbc;
+    --scan:    rgba(0,255,65,0.03);
+  }
+
+  *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    color: var(--green);
+    font-family: 'Share Tech Mono', monospace;
+    overflow: hidden;
+    cursor: none;
+  }
+
+  /* Custom cursor */
+  body::after {
+    content: '';
+    position: fixed;
+    width: 10px; height: 10px;
+    border: 1px solid var(--green);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9999;
+    transform: translate(-50%, -50%);
+    mix-blend-mode: screen;
+    box-shadow: 0 0 6px var(--green);
+    transition: transform 0.05s;
+    top: var(--cy, 50%);
+    left: var(--cx, 50%);
+  }
+
+  /* CRT screen warp */
+  .crt-wrap {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Scanlines */
+  .crt-wrap::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      var(--scan) 2px,
+      var(--scan) 4px
+    );
+    pointer-events: none;
+    z-index: 100;
+    animation: scanRoll 12s linear infinite;
+  }
+
+  @keyframes scanRoll {
+    from { background-position: 0 0; }
+    to   { background-position: 0 100vh; }
+  }
+
+  /* Vignette */
+  .crt-wrap::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center,
+      transparent 55%,
+      rgba(0,0,0,0.7) 100%
+    );
+    pointer-events: none;
+    z-index: 99;
+  }
+
+  /* Top bar */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 18px;
+    background: var(--muted);
+    border-bottom: 1px solid var(--dim);
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    color: var(--green3);
+    flex-shrink: 0;
+    z-index: 10;
+  }
+
+  .topbar .dot-row { display: flex; gap: 6px; }
+  .dot {
+    width: 11px; height: 11px;
+    border-radius: 50%;
+    background: var(--dim);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .dot:nth-child(1):hover { background: #ff5f57; }
+  .dot:nth-child(2):hover { background: #febc2e; }
+  .dot:nth-child(3):hover { background: #28c840; }
+
+  .topbar-title {
+    font-family: 'VT323', monospace;
+    font-size: 1.1rem;
+    color: var(--green2);
+    letter-spacing: 0.2em;
+    text-shadow: 0 0 8px var(--green);
+  }
+
+  .topbar-stats { display: flex; gap: 20px; }
+  .stat-pill { color: var(--green3); }
+  .stat-pill span { color: var(--green2); }
+
+  /* Main terminal body */
+  .terminal {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px 22px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--dim) transparent;
+    position: relative;
+  }
+
+  .terminal::-webkit-scrollbar { width: 4px; }
+  .terminal::-webkit-scrollbar-track { background: transparent; }
+  .terminal::-webkit-scrollbar-thumb { background: var(--dim); }
+
+  /* Boot sequence */
+  .boot-line {
+    font-size: 0.82rem;
+    color: var(--green3);
+    opacity: 0;
+    animation: fadeIn 0.01s forwards;
+    white-space: pre;
+    line-height: 1.55;
+  }
+
+  @keyframes fadeIn { to { opacity: 1; } }
+
+  /* Output lines */
+  .line {
+    font-size: 0.85rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  .line.prompt-line { color: var(--green); }
+  .line.prompt-line .prompt-user { color: var(--cyan); }
+  .line.prompt-line .prompt-host { color: var(--green2); }
+  .line.prompt-line .prompt-dir  { color: var(--amber); }
+  .line.prompt-line .prompt-dollar { color: var(--green); }
+
+  .line.output    { color: var(--text); padding-left: 2px; }
+  .line.success   { color: var(--green); }
+  .line.warn      { color: var(--amber); }
+  .line.danger    { color: var(--red); }
+  .line.cyan      { color: var(--cyan); }
+  .line.dim       { color: var(--green3); }
+  .line.big {
+    font-family: 'VT323', monospace;
+    font-size: 1.55rem;
+    letter-spacing: 0.05em;
+    color: var(--green);
+    text-shadow: 0 0 12px var(--green);
+    line-height: 1.2;
+  }
+
+  /* Progress bar */
+  .progress-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.82rem;
+    color: var(--text);
+    line-height: 1.6;
+  }
+  .progress-bar {
+    display: inline-block;
+    width: 0;
+    height: 10px;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    transition: width 0.05s linear;
+    vertical-align: middle;
+  }
+
+  /* Glitch text */
+  .glitch {
+    position: relative;
+    display: inline-block;
+  }
+  .glitch::before, .glitch::after {
+    content: attr(data-text);
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    overflow: hidden;
+  }
+  .glitch::before {
+    color: var(--red);
+    animation: glitch1 2.5s infinite;
+    clip-path: polygon(0 0, 100% 0, 100% 33%, 0 33%);
+  }
+  .glitch::after {
+    color: var(--cyan);
+    animation: glitch2 2.5s infinite;
+    clip-path: polygon(0 66%, 100% 66%, 100% 100%, 0 100%);
+  }
+
+  @keyframes glitch1 {
+    0%,90%,100% { transform: none; opacity: 0; }
+    92% { transform: translateX(-4px); opacity: 1; }
+    94% { transform: translateX(4px);  opacity: 1; }
+    96% { transform: none; opacity: 0; }
+  }
+  @keyframes glitch2 {
+    0%,90%,100% { transform: none; opacity: 0; }
+    93% { transform: translateX(4px); opacity: 1; }
+    95% { transform: translateX(-4px); opacity: 1; }
+    97% { transform: none; opacity: 0; }
+  }
+
+  /* Input row */
+  .input-row {
+    display: flex;
+    align-items: center;
+    padding: 10px 22px 16px;
+    gap: 0;
+    flex-shrink: 0;
+    border-top: 1px solid var(--muted);
+    background: var(--bg);
+  }
+
+  .input-prompt {
+    font-size: 0.85rem;
+    white-space: nowrap;
+    color: var(--cyan);
+    flex-shrink: 0;
+  }
+  .input-prompt .pi-host { color: var(--green2); }
+  .input-prompt .pi-dir  { color: var(--amber); }
+
+  #cmd-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--green);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.85rem;
+    caret-color: var(--green);
+    padding-left: 6px;
+  }
+
+  /* Blinking block cursor feel */
+  #cmd-input::selection { background: var(--green); color: var(--bg); }
+
+  /* Help box */
+  .help-box {
+    border: 1px solid var(--dim);
+    background: var(--muted);
+    padding: 10px 14px;
+    margin: 4px 0;
+    font-size: 0.8rem;
+    line-height: 1.7;
+    color: var(--text);
+  }
+
+  .help-box .cmd-name { color: var(--cyan); }
+  .help-box .cmd-desc { color: var(--green3); }
+
+  /* Scrollbar glow */
+  @keyframes glow {
+    0%,100% { text-shadow: 0 0 4px var(--green); }
+    50%      { text-shadow: 0 0 14px var(--green), 0 0 28px var(--green2); }
+  }
+</style>
+</head>
+<body>
+<div class="crt-wrap">
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="dot-row">
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+    </div>
+    <div class="topbar-title">h4ck3r.sh — root@darknet:~</div>
+    <div class="topbar-stats">
+      <span class="stat-pill">CPU <span id="cpu-stat">--</span>%</span>
+      <span class="stat-pill">MEM <span id="mem-stat">--</span>%</span>
+      <span class="stat-pill">NET <span id="net-stat">--</span> KB/s</span>
+      <span class="stat-pill" id="clock-stat"></span>
+    </div>
+  </div>
+
+  <!-- Terminal output -->
+  <div class="terminal" id="terminal"></div>
+
+  <!-- Input -->
+  <div class="input-row">
+    <span class="input-prompt">
+      <span style="color:var(--red)">root</span>@<span class="pi-host">darknet</span>:<span class="pi-dir">~</span>#&nbsp;
+    </span>
+    <input id="cmd-input" type="text" autocomplete="off" spellcheck="false"
+           placeholder="type a command..." autofocus />
+  </div>
+</div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+const terminal = document.getElementById('terminal');
+const input    = document.getElementById('cmd-input');
+let busy = false;
+let history = [];
+let historyIdx = -1;
+
+// ─── Fake stats ───────────────────────────────────────────────────────────────
+function fakeStats() {
+  document.getElementById('cpu-stat').textContent  = (Math.random()*60+20).toFixed(1);
+  document.getElementById('mem-stat').textContent  = (Math.random()*30+50).toFixed(1);
+  document.getElementById('net-stat').textContent  = (Math.random()*900+100).toFixed(0);
+  const now = new Date();
+  document.getElementById('clock-stat').textContent =
+    now.toTimeString().slice(0,8);
+}
+fakeStats();
+setInterval(fakeStats, 1200);
+
+// Custom cursor tracking
+document.addEventListener('mousemove', e => {
+  document.body.style.setProperty('--cx', e.clientX + 'px');
+  document.body.style.setProperty('--cy', e.clientY + 'px');
+});
+
+// ─── DOM helpers ──────────────────────────────────────────────────────────────
+function scrollBottom() {
+  terminal.scrollTop = terminal.scrollHeight;
+}
+
+function addLine(text, cls = 'output', delay = 0) {
+  return new Promise(resolve => {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = `line ${cls}`;
+      el.textContent = text;
+      terminal.appendChild(el);
+      scrollBottom();
+      resolve(el);
+    }, delay);
+  });
+}
+
+function addRaw(html, delay = 0) {
+  return new Promise(resolve => {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'line output';
+      el.innerHTML = html;
+      terminal.appendChild(el);
+      scrollBottom();
+      resolve(el);
+    }, delay);
+  });
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// Typewriter for a single line
+async function typewrite(text, cls = 'output', baseDelay = 0, speed = 28) {
+  await sleep(baseDelay);
+  const el = document.createElement('div');
+  el.className = `line ${cls}`;
+  terminal.appendChild(el);
+  for (const ch of text) {
+    el.textContent += ch;
+    scrollBottom();
+    await sleep(speed + Math.random() * 20);
+  }
+  return el;
+}
+
+// Progress bar printer
+async function progressLine(label, duration = 1200, color = 'var(--green)') {
+  const wrap = document.createElement('div');
+  wrap.className = 'progress-wrap';
+  const labelEl = document.createElement('span');
+  labelEl.textContent = label;
+  const bar = document.createElement('span');
+  bar.className = 'progress-bar';
+  bar.style.background = color;
+  bar.style.boxShadow = `0 0 6px ${color}`;
+  const pct = document.createElement('span');
+  pct.textContent = '0%';
+  wrap.appendChild(labelEl);
+  wrap.appendChild(bar);
+  wrap.appendChild(pct);
+  terminal.appendChild(wrap);
+  scrollBottom();
+
+  const steps = 40;
+  const stepTime = duration / steps;
+  for (let i = 1; i <= steps; i++) {
+    await sleep(stepTime);
+    const p = Math.round((i / steps) * 100);
+    bar.style.width = (p * 1.8) + 'px';  // max ~180px
+    pct.textContent = p + '%';
+  }
+  pct.textContent = '100% ✓';
+}
+
+// Fake hex dump stream
+async function hexDump(lines = 6, delay = 60) {
+  for (let i = 0; i < lines; i++) {
+    const addr = (i * 16).toString(16).padStart(8, '0').toUpperCase();
+    const bytes = Array.from({length: 16}, () =>
+      Math.floor(Math.random() * 256).toString(16).padStart(2, '0').toUpperCase()
+    ).join(' ');
+    const ascii = Array.from({length: 16}, () => {
+      const c = Math.floor(Math.random() * 94) + 33;
+      return String.fromCharCode(c);
+    }).join('');
+    await addLine(`  ${addr}  ${bytes}  |${ascii}|`, 'dim', 0);
+    await sleep(delay);
+  }
+}
+
+// Prompt line
+function addPrompt(cmd) {
+  const el = document.createElement('div');
+  el.className = 'line prompt-line';
+  el.innerHTML =
+    `<span class="prompt-user">root</span>` +
+    `<span style="color:var(--green3)">@</span>` +
+    `<span class="prompt-host">darknet</span>` +
+    `<span style="color:var(--green3)">:</span>` +
+    `<span class="prompt-dir">~</span>` +
+    `<span class="prompt-dollar"># </span>` +
+    `<span style="color:var(--green)">${escHtml(cmd)}</span>`;
+  terminal.appendChild(el);
+  scrollBottom();
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function blank() { addLine('', 'dim'); }
+
+// ─── Boot sequence ────────────────────────────────────────────────────────────
+const BOOT_LINES = [
+  { t: '[ SYS  ] Kernel 6.6.8-darknet-x86_64 initialized',            d: 0    },
+  { t: '[ BIOS ] Secure boot: BYPASSED',                               d: 80   },
+  { t: '[ NET  ] VPN tunnel established — 17 hops anonymized',         d: 160  },
+  { t: '[ CRYPTO ] Tor circuit built: RU → DE → JP → US',             d: 260  },
+  { t: '[ CRYPTO ] AES-256 session keys generated',                    d: 360  },
+  { t: '[ SCAN ] Shodan feed connected',                               d: 440  },
+  { t: '[ OK   ] darknet shell ready',                                 d: 560  },
+  { t: '',                                                              d: 640  },
+  { t: '  ██╗  ██╗ ██╗  ██╗ █████╗  ██████╗██╗  ██╗███████╗██████╗', d: 680, big: true },
+  { t: '  ██║  ██║ ██║  ██║██╔══██╗██╔════╝██║ ██╔╝██╔════╝██╔══██╗',d: 720, big: true },
+  { t: '  ███████║ ███████║███████║██║     █████╔╝ █████╗  ██████╔╝', d: 760, big: true },
+  { t: '  ██╔══██║ ╚════██║██╔══██║██║     ██╔═██╗ ██╔══╝  ██╔══██╗', d: 800, big: true },
+  { t: '  ██║  ██║      ██║██║  ██║╚██████╗██║  ██╗███████╗██║  ██║', d: 840, big: true },
+  { t: '  ╚═╝  ╚═╝      ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝',d: 880, big: true},
+  { t: '',                                                              d: 920  },
+  { t: '  Welcome back, root. 3 new targets available.',               d: 960, cls: 'cyan' },
+  { t: '  Type  help  to see available commands.',                     d: 1020, cls: 'dim'  },
+  { t: '',                                                              d: 1080 },
+];
+
+async function boot() {
+  for (const item of BOOT_LINES) {
+    const el = document.createElement('div');
+    el.className = `line ${item.big ? 'big' : (item.cls || 'dim')}`;
+    el.style.animationDelay = item.d + 'ms';
+    el.classList.add('boot-line');
+    el.textContent = item.t;
+    terminal.appendChild(el);
+  }
+  await sleep(1200);
+  scrollBottom();
+  input.focus();
+}
+
+// ─── Commands ─────────────────────────────────────────────────────────────────
+
+const COMMANDS = {
+
+  // ── help ──
+  async help() {
+    blank();
+    const cmds = [
+      ['hack <target>',      'Initiate a hacking sequence on a target'],
+      ['scan <ip>',          'Scan a target IP for vulnerabilities'],
+      ['decrypt <file>',     'Decrypt an intercepted file'],
+      ['trace <callsign>',   'Trace a network signal to its origin'],
+      ['ssh <host>',         'Connect to a remote server'],
+      ['ls / dir',           'List current directory contents'],
+      ['whoami',             'Print current user info'],
+      ['status',             'Show system and network status'],
+      ['matrix',             'Activate matrix mode'],
+      ['nmap <target>',      'Network map a target'],
+      ['crack <hash>',       'Crack a password hash'],
+      ['clear',              'Clear the terminal'],
+      ['help',               'Show this message'],
+    ];
+    const el = document.createElement('div');
+    el.className = 'help-box';
+    el.innerHTML = cmds.map(([cmd, desc]) =>
+      `<div><span class="cmd-name">${cmd.padEnd(24)}</span><span class="cmd-desc">— ${desc}</span></div>`
+    ).join('');
+    terminal.appendChild(el);
+    blank();
+  },
+
+  // ── hack ──
+  async hack(args) {
+    const target = args || 'nasa';
+    const TARGET = target.toUpperCase();
+
+    const sequences = {
+      nasa: [
+        { t: `[*] Establishing connection to NASA Goddard mainframe...`, cls:'output',  d:0    },
+        { t: `[+] Bypassing firewall layer 1/3... done`,                 cls:'success', d:600  },
+        { t: `[+] Bypassing firewall layer 2/3... done`,                 cls:'success', d:1100 },
+        { t: `[+] Bypassing firewall layer 3/3... done`,                 cls:'success', d:1600 },
+        { t: `[*] Accessing satellite uplink array...`,                  cls:'output',  d:2100 },
+        { t: `[*] Decrypting Pentagon subnet...`,                        cls:'output',  d:2900 },
+        { t: `[!] ALERT: Intrusion detection triggered — spoofing MAC`,  cls:'warn',    d:3600 },
+        { t: `[+] MAC spoofed successfully. Continuing...`,              cls:'success', d:4200 },
+        { t: `[*] Downloading astronaut memes...`,                       cls:'output',  d:5000 },
+        { t: `[*] Downloading moon landing footage (unedited)...`,       cls:'output',  d:5600 },
+        { t: `[+] Exfiltrating 47,832 classified documents...`,          cls:'success', d:6200 },
+        { t: `[+] HACK COMPLETE. NASA has been compromised. 😎`,         cls:'success', d:7400 },
+      ],
+      pentagon: [
+        { t: `[*] Routing through 12 anonymous proxies...`,              cls:'output',  d:0    },
+        { t: `[*] Accessing Pentagon secure intranet...`,                cls:'output',  d:700  },
+        { t: `[!] BIOMETRIC WALL DETECTED — deploying deepfake bypass`,  cls:'warn',    d:1400 },
+        { t: `[+] Biometrics bypassed. Inside the network.`,             cls:'success', d:2200 },
+        { t: `[*] Scanning classified folder structure...`,              cls:'output',  d:3000 },
+        { t: `[*] Found: /TOP_SECRET/aliens/roswell_real.mp4`,           cls:'cyan',    d:3800 },
+        { t: `[*] Found: /TOP_SECRET/JFK/who_did_it.txt`,                cls:'cyan',    d:4200 },
+        { t: `[*] Downloading everything...`,                            cls:'output',  d:4800 },
+        { t: `[+] Download complete. 2.3 TB exfiltrated.`,               cls:'success', d:6000 },
+        { t: `[+] HACK COMPLETE. Pentagon has been compromised. 😎`,     cls:'success', d:7000 },
+      ],
+      google: [
+        { t: `[*] Connecting to Google datacenter, The Dalles OR...`,    cls:'output',  d:0    },
+        { t: `[*] Exploiting CVE-2024-0001 zero-day...`,                 cls:'output',  d:800  },
+        { t: `[+] Root access to search index granted.`,                 cls:'success', d:1600 },
+        { t: `[*] Your search history: loading...`,                      cls:'cyan',    d:2400 },
+        { t: `    > "how to look cool at parties"`,                      cls:'dim',     d:2800 },
+        { t: `    > "is cereal a soup"`,                                 cls:'dim',     d:3100 },
+        { t: `    > "can dolphins be trusted"`,                          cls:'dim',     d:3400 },
+        { t: `[!] Looks like we already know everything about you.`,     cls:'warn',    d:3900 },
+        { t: `[+] HACK COMPLETE. Google is now yours. 😎`,               cls:'success', d:5000 },
+      ],
+    };
+
+    const steps = sequences[target.toLowerCase()] || [
+      { t: `[*] Looking up target: ${TARGET}...`,                        cls:'output',  d:0    },
+      { t: `[*] Running OSINT sweep...`,                                 cls:'output',  d:600  },
+      { t: `[+] Found 3 open ports: 22, 80, 8443`,                     cls:'success', d:1200 },
+      { t: `[*] Deploying exploit payload...`,                           cls:'output',  d:1900 },
+      { t: `[+] Shell obtained: ${target.toLowerCase()}@victim:~$`,     cls:'success', d:2800 },
+      { t: `[*] Elevating privileges...`,                                cls:'output',  d:3400 },
+      { t: `[+] root access granted.`,                                   cls:'success', d:4000 },
+      { t: `[*] Downloading everything interesting...`,                  cls:'output',  d:4600 },
+      { t: `[+] HACK COMPLETE. ${TARGET} has been compromised. 😎`,      cls:'success', d:5600 },
+    ];
+
+    blank();
+    addLine(`Initiating hack sequence on target: ${TARGET}`, 'cyan');
+    await sleep(300);
+
+    // Progress for connection
+    await progressLine('Establishing encrypted tunnel ', 800);
+    blank();
+
+    for (const step of steps) {
+      await addLine(step.t, step.cls, step.d);
+    }
+
+    await sleep(800);
+    await progressLine('Covering tracks              ', 1400, 'var(--amber)');
+    blank();
+    await addLine('[+] All traces erased. You were never here.', 'success');
+    await hexDump(3, 40);
+    blank();
+  },
+
+  // ── scan ──
+  async scan(args) {
+    const ip = args || `${rnd(1,255)}.${rnd(0,255)}.${rnd(0,255)}.${rnd(1,255)}`;
+    blank();
+    await typewrite(`Starting Nmap 7.94 scan on ${ip}...`, 'output', 0, 22);
+    await sleep(300);
+    await progressLine('Host discovery           ', 600);
+    await sleep(200);
+
+    const ports = [
+      [22,  'tcp', 'open', 'ssh',   'OpenSSH 9.1'],
+      [80,  'tcp', 'open', 'http',  'nginx 1.25.3'],
+      [443, 'tcp', 'open', 'https', 'nginx 1.25.3'],
+      [3306,'tcp', 'open', 'mysql', 'MySQL 8.0.35'],
+      [8080,'tcp', 'open', 'http',  'Apache Tomcat 10.1'],
+    ].filter(() => Math.random() > 0.3);
+
+    blank();
+    await addLine(`PORT     STATE  SERVICE  VERSION`, 'cyan');
+    await addLine(`─────────────────────────────────────────────`, 'dim');
+    for (const [port, proto, state, svc, version] of ports) {
+      await addLine(`${String(port).padEnd(8)} ${state.padEnd(6)} ${svc.padEnd(8)} ${version}`, 'output');
+      await sleep(120);
+    }
+    blank();
+    await addLine(`[+] ${ports.length} open port(s) found. ${Math.floor(Math.random()*5)+1} known CVEs detected.`, 'success');
+
+    if (ports.length > 0) {
+      await addLine(`[!] Recommended exploits: EternalBlue, Dirty COW, Log4Shell`, 'warn');
+    }
+    blank();
+  },
+
+  // ── decrypt ──
+  async decrypt(args) {
+    const file = args || 'intercepted_comms.enc';
+    blank();
+    await addLine(`[*] Target: ${file}`, 'output');
+    await addLine(`[*] Detecting cipher...`, 'output');
+    await sleep(600);
+    await addLine(`[+] Detected: AES-256-CBC with PBKDF2 key derivation`, 'success');
+    await sleep(400);
+    await progressLine('Brute-forcing IV         ', 1000);
+    await progressLine('Deriving master key      ', 1600, 'var(--cyan)');
+    await sleep(300);
+    await addLine(`[+] KEY FOUND: 4f3a9b2e1c8d7f56`, 'success');
+    blank();
+    await addLine(`[*] Decrypted contents:`, 'cyan');
+    await hexDump(4, 50);
+    await addLine(`[+] Plaintext saved to /tmp/decrypted_${Date.now()}.txt`, 'success');
+    blank();
+  },
+
+  // ── trace ──
+  async trace(args) {
+    const target = args || 'unknown-signal';
+    blank();
+    await addLine(`[*] Tracing signal origin: ${target}`, 'output');
+    await sleep(400);
+
+    const hops = [
+      ['10.0.0.1',       'Local gateway',          'US', '1ms'   ],
+      ['185.220.101.47', 'Tor exit node #1',        'DE', '43ms'  ],
+      ['45.33.32.156',   'Relay node',              'JP', '127ms' ],
+      ['77.88.55.77',    'Unknown — no RDNS',       'RU', '189ms' ],
+      ['104.18.0.0',     'CloudFlare edge',         'FR', '201ms' ],
+      [args ? `${rnd(1,255)}.${rnd(0,255)}.0.1` : '192.168.1.1', 'Origin host', 'CN', '247ms'],
+    ];
+
+    blank();
+    for (let i = 0; i < hops.length; i++) {
+      const [ip, label, country, lat] = hops[i];
+      await addLine(`  ${String(i+1).padEnd(3)} ${ip.padEnd(18)} [${country}]  ${label.padEnd(28)} ${lat}`, 'output');
+      await sleep(280);
+    }
+    blank();
+    await addLine(`[+] Signal traced to: ${hops[hops.length-1][1]} (${hops[hops.length-1][2]})`, 'success');
+    await addLine(`[!] Coordinates locked: ${(Math.random()*180-90).toFixed(4)}°N, ${(Math.random()*360-180).toFixed(4)}°E`, 'warn');
+    blank();
+  },
+
+  // ── ssh ──
+  async ssh(args) {
+    const host = args || 'target.darknet.onion';
+    blank();
+    await typewrite(`Connecting to ${host}...`, 'output', 0, 30);
+    await sleep(500);
+    await addLine(`[*] Negotiating SSH-2.0-OpenSSH_9.1`, 'dim');
+    await sleep(400);
+    await addLine(`[+] Host key accepted (Ed25519)`, 'success');
+    await sleep(300);
+    await addLine(`[+] Authentication successful`, 'success');
+    blank();
+    await addLine(`Last login: ${new Date(Date.now()-86400000).toUTCString()}`, 'dim');
+    blank();
+    await addLine(`root@${host}:~# _`, 'success');
+    blank();
+  },
+
+  // ── whoami ──
+  async whoami() {
+    blank();
+    await addLine(`uid=0(root) gid=0(root) groups=0(root),27(sudo),1337(h4x0r)`, 'cyan');
+    await addLine(`clearance: ULTRA TOP SECRET`, 'warn');
+    await addLine(`threat level: CRITICAL`, 'danger');
+    await addLine(`reputation: Interpol Most Wanted #4`, 'output');
+    blank();
+  },
+
+  // ── status ──
+  async status() {
+    blank();
+    await addLine(`━━━━━━━━━━━━━━━━  SYSTEM STATUS  ━━━━━━━━━━━━━━━━`, 'cyan');
+    blank();
+    const rows = [
+      ['VPN',         'ACTIVE — 17 hops',           'success'],
+      ['TOR',         'ACTIVE — circuit rebuilt',    'success'],
+      ['FIREWALL',    'BYPASSED',                    'warn'],
+      ['ANTIVIRUS',   'DISABLED (obviously)',         'danger'],
+      ['ENCRYPTION',  'AES-256 / ChaCha20-Poly1305', 'success'],
+      ['UPTIME',      `${rnd(1,99)} days ${rnd(0,23)}h ${rnd(0,59)}m`, 'dim'],
+      ['TARGETS',     '3 queued / 14 compromised',   'success'],
+      ['FBI THREAT',  'ELEVATED 🚔',                 'warn'],
+    ];
+    for (const [k, v, cls] of rows) {
+      await addLine(`  ${k.padEnd(14)} ${v}`, cls);
+      await sleep(80);
+    }
+    blank();
+  },
+
+  // ── nmap ──
+  async nmap(args) {
+    await COMMANDS.scan(args);
+  },
+
+  // ── crack ──
+  async crack(args) {
+    const hash = args || 'e3b0c44298fc1c149afb';
+    blank();
+    await addLine(`[*] Hash: ${hash}`, 'output');
+    await addLine(`[*] Detecting hash type...`, 'output');
+    await sleep(500);
+    await addLine(`[+] Detected: MD5 / SHA-1 (likely SHA-1)`, 'success');
+    await sleep(300);
+    await addLine(`[*] Loading rockyou.txt wordlist (14,341,564 entries)...`, 'output');
+    await progressLine('Dictionary attack        ', 1200);
+    await sleep(200);
+    await addLine(`[-] Wordlist exhausted. Switching to brute-force...`, 'warn');
+    await progressLine('Brute force (6-char)     ', 1800, 'var(--amber)');
+    await sleep(300);
+    const passwords = ['hunter2','p@ssw0rd','letmein','123456','qwerty','iloveyou','admin','monkey'];
+    await addLine(`[+] CRACKED: ${passwords[Math.floor(Math.random()*passwords.length)]}`, 'success');
+    blank();
+  },
+
+  // ── ls / dir ──
+  async ls() {
+    blank();
+    const files = [
+      ['drwxr-xr-x', 'root', 'root', '4096',    'exploits/'],
+      ['drwxr-xr-x', 'root', 'root', '4096',    'stolen_data/'],
+      ['-rwxr-xr-x', 'root', 'root', '102400',  'zero_day_exploit.py'],
+      ['-rw-r--r--', 'root', 'root', '2048',    'pentagon_login.txt'],
+      ['-rw-r--r--', 'root', 'root', '819200',  'nsa_secrets.tar.gz'],
+      ['-rwxr-xr-x', 'root', 'root', '4096',    'cover_tracks.sh'],
+      ['-rw-r--r--', 'root', 'root', '1024',    '.bash_history'],
+      ['-rwxr-xr-x', 'root', 'root', '8192',    'tunnel.sh'],
+    ];
+    await addLine(`total ${files.length * 8}`, 'dim');
+    for (const [perm, usr, grp, size, name] of files) {
+      const cls = name.endsWith('/') ? 'cyan' : name.endsWith('.py') || name.endsWith('.sh') ? 'success' : 'output';
+      await addLine(`${perm}  ${usr.padEnd(5)} ${grp.padEnd(5)} ${String(size).padStart(7)}  ${name}`, cls);
+      await sleep(50);
+    }
+    blank();
+  },
+
+  async dir() { await COMMANDS.ls(); },
+
+  // ── matrix ──
+  async matrix() {
+    blank();
+    await addLine(`[*] Activating matrix mode...`, 'cyan');
+    await sleep(300);
+    const chars = '日本語中文한국어アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモ0123456789ABCDEF';
+    for (let row = 0; row < 8; row++) {
+      let line = '';
+      for (let col = 0; col < 72; col++) {
+        line += chars[Math.floor(Math.random() * chars.length)];
+      }
+      const cls = row < 3 ? 'success' : row < 6 ? 'dim' : 'output';
+      await addLine(line, cls);
+      await sleep(60);
+    }
+    blank();
+    await addLine(`[+] You are The One.`, 'cyan');
+    blank();
+  },
+
+  // ── clear ──
+  async clear() {
+    terminal.innerHTML = '';
+  },
+};
+
+// ─── Input handling ───────────────────────────────────────────────────────────
+function rnd(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+input.addEventListener('keydown', async (e) => {
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (historyIdx < history.length - 1) {
+      historyIdx++;
+      input.value = history[historyIdx];
+    }
+    return;
+  }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (historyIdx > 0) {
+      historyIdx--;
+      input.value = history[historyIdx];
+    } else {
+      historyIdx = -1;
+      input.value = '';
+    }
+    return;
+  }
+  if (e.key !== 'Enter') return;
+
+  const raw = input.value.trim();
+  input.value = '';
+  historyIdx = -1;
+
+  if (!raw) return;
+  if (busy) return;
+
+  history.unshift(raw);
+  if (history.length > 50) history.pop();
+
+  busy = true;
+  input.disabled = true;
+
+  addPrompt(raw);
+
+  const [cmd, ...argParts] = raw.toLowerCase().split(/\s+/);
+  const args = argParts.join(' ');
+
+  if (COMMANDS[cmd]) {
+    await COMMANDS[cmd](args || null);
+  } else {
+    blank();
+    await addLine(`bash: ${cmd}: command not found`, 'danger');
+    await addLine(`Try 'help' to see available commands.`, 'dim');
+    blank();
+  }
+
+  busy = false;
+  input.disabled = false;
+  input.focus();
+});
+
+// Keep focus
+document.addEventListener('click', () => input.focus());
+
+// ─── Boot ──────────────────────────────────────────────────────────────────────
+boot();
+</script>
+</body>
+</html>
