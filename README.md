@@ -122,8 +122,9 @@ fake-hacker/
   <img src="images/Capture d'écran 2026-09-29 092902.png" width="200" height="300">
   <img src="images/Capture d'écran 2026-09-29 092946.png" width="200" height="500">
 </p>
----
 
+
+---
 ## License
 
 MIT. Not responsible for any confused coworkers, worried parents, or called bluffs.
